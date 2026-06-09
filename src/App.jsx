@@ -105,8 +105,8 @@ function LeadForm({ initialValue, onClose, onSubmit, saving }) {
               <input name="name" value={form.name} onChange={change} placeholder="z. B. Atelier Nord" required autoFocus />
             </label>
             <label className="field field-wide">
-              <span>Google Maps Link</span>
-              <input name="mapsUrl" type="url" value={form.mapsUrl} onChange={change} placeholder="https://maps.google.com/..." />
+              <span>Google Maps Link <em>(optional)</em></span>
+              <input name="mapsUrl" type="url" value={form.mapsUrl} onChange={change} placeholder="Optional: https://maps.google.com/..." />
             </label>
             <label className="field">
               <span>Status</span>

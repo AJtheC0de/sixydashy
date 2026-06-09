@@ -8,6 +8,8 @@ import {
   Download,
   Globe2,
   LayoutDashboard,
+  LockKeyhole,
+  LogOut,
   Mail,
   MapPin,
   MoreHorizontal,
@@ -19,9 +21,9 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { onAuthStateChanged } from "firebase/auth";
+import { onIdTokenChanged } from "firebase/auth";
 import { onValue, push, ref, remove, set, update } from "firebase/database";
-import { auth, connectAnonymously, database } from "./firebase";
+import { auth, database, loginWithEmail, logout, registerWithEmail, resetPassword } from "./firebase";
 
 const STATUSES = ["Potentieller Lead", "Noch nichts", "Kontaktiert", "Warte auf Antwort"];
 const WEBSITE_STATUSES = ["Keine Webseite", "Alte Webseite"];
@@ -63,6 +65,106 @@ function StatusBadge({ status }) {
       <span className="status-dot" />
       {meta.label}
     </span>
+  );
+}
+
+const authErrorMessages = {
+  "auth/email-already-in-use": "Für diese E-Mail-Adresse existiert bereits ein Konto.",
+  "auth/invalid-credential": "E-Mail-Adresse oder Passwort ist nicht korrekt.",
+  "auth/invalid-email": "Bitte gib eine gültige E-Mail-Adresse ein.",
+  "auth/weak-password": "Das Passwort muss mindestens 6 Zeichen lang sein.",
+  "auth/operation-not-allowed": "E-Mail-/Passwort-Login muss zuerst in Firebase aktiviert werden.",
+  "auth/too-many-requests": "Zu viele Versuche. Bitte warte kurz und versuche es erneut.",
+};
+
+function AuthScreen({ anonymousUser }) {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    setSubmitting(true);
+    setAuthError("");
+    setMessage("");
+    try {
+      if (mode === "register") {
+        await registerWithEmail(email.trim(), password);
+      } else {
+        await loginWithEmail(email.trim(), password);
+      }
+    } catch (error) {
+      setAuthError(authErrorMessages[error.code] ?? "Anmeldung fehlgeschlagen. Bitte versuche es erneut.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function requestReset() {
+    if (!email.trim()) {
+      setAuthError("Gib zuerst deine E-Mail-Adresse ein.");
+      return;
+    }
+    setSubmitting(true);
+    setAuthError("");
+    try {
+      await resetPassword(email.trim());
+      setMessage("E-Mail zum Zurücksetzen des Passworts wurde versendet.");
+    } catch (error) {
+      setAuthError(authErrorMessages[error.code] ?? "Die E-Mail konnte nicht versendet werden.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function switchMode(nextMode) {
+    setMode(nextMode);
+    setAuthError("");
+    setMessage("");
+  }
+
+  return (
+    <main className="auth-page">
+      <section className="auth-card">
+        <div className="auth-brand">
+          <img className="auth-logo" src="/logo.png" alt="LeadFlow Logo" />
+          <div><span className="eyebrow">Lead Management</span><strong>LeadFlow</strong></div>
+        </div>
+        <div className="auth-heading">
+          <span className="auth-icon"><LockKeyhole size={20} /></span>
+          <h1>{mode === "register" ? "Konto erstellen" : "Willkommen zurück"}</h1>
+          <p>{mode === "register" ? "Erstelle deinen persönlichen Zugang für alle Geräte." : "Melde dich an, um deine Leads auf allen Geräten zu sehen."}</p>
+        </div>
+        {anonymousUser && mode === "register" && (
+          <div className="auth-info">Deine bisherigen Leads auf diesem Gerät werden mit dem neuen Konto verbunden.</div>
+        )}
+        {authError && <div className="auth-error">{authError}</div>}
+        {message && <div className="auth-success">{message}</div>}
+        <form className="auth-form" onSubmit={submit}>
+          <label className="field">
+            <span>E-Mail-Adresse</span>
+            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@firma.ch" required autoFocus />
+          </label>
+          <label className="field">
+            <span>Passwort</span>
+            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mindestens 6 Zeichen" minLength={6} required />
+          </label>
+          <button className="button button-primary auth-submit" type="submit" disabled={submitting}>
+            {submitting ? "Bitte warten..." : mode === "register" ? "Konto erstellen" : "Anmelden"}
+          </button>
+        </form>
+        {mode === "login" && <button className="text-button" type="button" onClick={requestReset} disabled={submitting}>Passwort vergessen?</button>}
+        <div className="auth-switch">
+          <span>{mode === "register" ? "Du hast bereits ein Konto?" : "Noch kein Konto?"}</span>
+          <button type="button" onClick={() => switchMode(mode === "register" ? "login" : "register")}>
+            {mode === "register" ? "Jetzt anmelden" : "Konto erstellen"}
+          </button>
+        </div>
+      </section>
+    </main>
   );
 }
 
@@ -191,6 +293,8 @@ function LeadCard({ lead, onEdit, onDelete, onStatusChange }) {
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [anonymousUser, setAnonymousUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [leads, setLeads] = useState([]);
   const [statusFilter, setStatusFilter] = useState("Alle");
   const [query, setQuery] = useState("");
@@ -201,17 +305,11 @@ export default function App() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        return;
-      }
-      try {
-        await connectAnonymously();
-      } catch (authError) {
-        setError("Firebase-Verbindung fehlgeschlagen. Aktiviere Anonymous Auth in der Firebase Console.");
-        setLoading(false);
-      }
+    return onIdTokenChanged(auth, (currentUser) => {
+      setAnonymousUser(currentUser?.isAnonymous ? currentUser : null);
+      setUser(currentUser && !currentUser.isAnonymous ? currentUser : null);
+      setAuthReady(true);
+      if (!currentUser || currentUser.isAnonymous) setLoading(false);
     });
   }, []);
 
@@ -312,6 +410,14 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
+  if (!authReady) {
+    return <main className="auth-page"><div className="loader" /></main>;
+  }
+
+  if (!user) {
+    return <AuthScreen anonymousUser={anonymousUser} />;
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -322,7 +428,8 @@ export default function App() {
         </nav>
         <div className="sidebar-note">
           <span className="sync-indicator"><i /> Firebase Sync</span>
-          <p>Deine Leads werden automatisch gespeichert.</p>
+          <p className="account-email">{user.email}</p>
+          <button className="logout-button" type="button" onClick={logout}><LogOut size={14} /> Abmelden</button>
         </div>
       </aside>
 
@@ -334,6 +441,7 @@ export default function App() {
             <h1>Guten Tag</h1>
             <p>Hier ist der aktuelle Stand deiner Akquise.</p>
           </div>
+          <button className="mobile-logout icon-button" type="button" onClick={logout} aria-label="Abmelden"><LogOut size={17} /></button>
           <button className="button button-primary add-button" onClick={openNewLead}><Plus size={18} /> Lead hinzufügen</button>
         </header>
 

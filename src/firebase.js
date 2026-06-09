@@ -1,5 +1,13 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  EmailAuthProvider,
+  getAuth,
+  linkWithCredential,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
@@ -17,6 +25,21 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const database = getDatabase(app);
 
-export function connectAnonymously() {
-  return signInAnonymously(auth);
+export function loginWithEmail(email, password) {
+  return signInWithEmailAndPassword(auth, email, password);
+}
+
+export function registerWithEmail(email, password) {
+  if (auth.currentUser?.isAnonymous) {
+    return linkWithCredential(auth.currentUser, EmailAuthProvider.credential(email, password));
+  }
+  return createUserWithEmailAndPassword(auth, email, password);
+}
+
+export function resetPassword(email) {
+  return sendPasswordResetEmail(auth, email);
+}
+
+export function logout() {
+  return signOut(auth);
 }

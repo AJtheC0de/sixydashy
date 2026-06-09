@@ -11,7 +11,7 @@ npm run dev
 
 ## Firebase vorbereiten
 
-1. In der Firebase Console unter **Authentication > Sign-in method** den Anbieter **Anonymous** aktivieren.
+1. In der Firebase Console unter **Authentication > Sign-in method** den Anbieter **Email/Password** aktivieren. **Anonymous** kann vorübergehend aktiviert bleiben, damit bestehende lokale Leads beim Registrieren mit dem neuen Konto verbunden werden.
 2. Die Realtime Database erstellen.
 3. Firebase CLI installieren und die abgesicherten Rules deployen:
 
@@ -22,7 +22,7 @@ firebase use sixydashy
 firebase deploy --only database
 ```
 
-Die Rules speichern Leads getrennt je anonymer Benutzer-ID. Für ein gemeinsames Team-Dashboard sollte später E-Mail-/Google-Login mit Rollen ergänzt werden.
+Die Rules speichern Leads getrennt je Benutzer-ID. Mit demselben E-Mail-/Passwort-Konto sind die eigenen Leads auf Desktop und Mobile verfügbar.
 
 ## Vercel Deployment
 

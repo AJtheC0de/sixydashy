@@ -1,0 +1,15 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "leads": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$leadId": {
+          ".validate": "newData.hasChildren(['name', 'status', 'websiteStatus', 'createdAt'])"
+        }
+      }
+    }
+  }
+}

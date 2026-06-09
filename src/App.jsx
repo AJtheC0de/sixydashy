@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  CircleDot,
   Download,
   Globe2,
   LayoutDashboard,
@@ -22,10 +23,11 @@ import { onAuthStateChanged } from "firebase/auth";
 import { onValue, push, ref, remove, set, update } from "firebase/database";
 import { auth, connectAnonymously, database } from "./firebase";
 
-const STATUSES = ["Noch nichts", "Kontaktiert", "Warte auf Antwort"];
+const STATUSES = ["Potentieller Lead", "Noch nichts", "Kontaktiert", "Warte auf Antwort"];
 const WEBSITE_STATUSES = ["Keine Webseite", "Alte Webseite"];
 
 const statusMeta = {
+  "Potentieller Lead": { className: "status-potential", label: "Potentieller Lead" },
   "Noch nichts": { className: "status-new", label: "Noch nichts" },
   Kontaktiert: { className: "status-contacted", label: "Kontaktiert" },
   "Warte auf Antwort": { className: "status-waiting", label: "Warte auf Antwort" },
@@ -347,6 +349,10 @@ export default function App() {
             <button className={`stat-card ${statusFilter === "Noch nichts" ? "selected" : ""}`} onClick={() => setStatusFilter("Noch nichts")}>
               <span className="stat-icon neutral"><MoreHorizontal size={19} /></span>
               <span><small>Noch nichts</small><strong>{counts["Noch nichts"] ?? 0}</strong></span>
+            </button>
+            <button className={`stat-card ${statusFilter === "Potentieller Lead" ? "selected" : ""}`} onClick={() => setStatusFilter("Potentieller Lead")}>
+              <span className="stat-icon potential"><CircleDot size={19} /></span>
+              <span><small>Potentieller Lead</small><strong>{counts["Potentieller Lead"] ?? 0}</strong></span>
             </button>
             <button className={`stat-card ${statusFilter === "Kontaktiert" ? "selected" : ""}`} onClick={() => setStatusFilter("Kontaktiert")}>
               <span className="stat-icon blue"><Check size={19} /></span>

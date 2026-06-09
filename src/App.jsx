@@ -4,7 +4,6 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
-  CircleDot,
   Download,
   Globe2,
   LayoutDashboard,
@@ -314,7 +313,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark"><CircleDot size={20} /></span><span>LeadFlow</span></div>
+        <div className="brand"><img className="brand-logo" src="/logo.png" alt="LeadFlow Logo" /><span>LeadFlow</span></div>
         <nav>
           <a className="nav-item active" href="#dashboard"><LayoutDashboard size={18} /> Übersicht</a>
           <a className="nav-item" href="#leads"><Users size={18} /> Alle Leads <span>{leads.length}</span></a>
@@ -327,7 +326,7 @@ export default function App() {
 
       <main>
         <header className="topbar">
-          <div className="mobile-brand"><span className="brand-mark"><CircleDot size={18} /></span> LeadFlow</div>
+          <div className="mobile-brand"><img className="brand-logo" src="/logo.png" alt="LeadFlow Logo" /> LeadFlow</div>
           <div className="topbar-copy">
             <span className="eyebrow">Lead Management</span>
             <h1>Guten Tag</h1>

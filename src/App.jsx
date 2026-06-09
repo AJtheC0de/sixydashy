@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   CalendarDays,
@@ -18,6 +18,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Upload,
   Users,
   X,
 } from "lucide-react";
@@ -56,6 +57,40 @@ function formatDate(value) {
 
 function escapeCsv(value) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let value = "";
+  let quoted = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === '"') {
+      if (quoted && text[index + 1] === '"') {
+        value += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === ";" && !quoted) {
+      row.push(value);
+      value = "";
+    } else if ((character === "\n" || character === "\r") && !quoted) {
+      if (character === "\r" && text[index + 1] === "\n") index += 1;
+      row.push(value);
+      if (row.some((cell) => cell.trim())) rows.push(row);
+      row = [];
+      value = "";
+    } else {
+      value += character;
+    }
+  }
+
+  row.push(value);
+  if (row.some((cell) => cell.trim())) rows.push(row);
+  return rows;
 }
 
 function StatusBadge({ status }) {
@@ -303,6 +338,9 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [importing, setImporting] = useState(false);
+  const importInputRef = useRef(null);
 
   useEffect(() => {
     return onIdTokenChanged(auth, (currentUser) => {
@@ -410,6 +448,55 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
+  async function importCsv(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !user) return;
+
+    setImporting(true);
+    setError("");
+    setNotice("");
+    try {
+      const rows = parseCsv((await file.text()).replace(/^\uFEFF/, ""));
+      const expectedHeaders = ["Name", "Google Maps", "Status", "Webseite", "Telefon", "E-Mail", "Datum"];
+      const headers = rows.shift()?.map((header) => header.trim()) ?? [];
+      if (expectedHeaders.some((header, index) => headers[index] !== header)) {
+        throw new Error("invalid-format");
+      }
+
+      const now = Date.now();
+      const updates = {};
+      let importedCount = 0;
+      rows.forEach((row, index) => {
+        const [name, mapsUrl, status, websiteStatus, phone, email, date] = row.map((cell) => cell.trim());
+        if (!name) return;
+        const leadRef = push(ref(database, `leads/${user.uid}`));
+        updates[leadRef.key] = {
+          name,
+          mapsUrl: mapsUrl ?? "",
+          status: STATUSES.includes(status) ? status : "Noch nichts",
+          websiteStatus: WEBSITE_STATUSES.includes(websiteStatus) ? websiteStatus : "Keine Webseite",
+          phone: phone ?? "",
+          email: email ?? "",
+          date: date || new Date().toISOString().slice(0, 10),
+          createdAt: now + index,
+          updatedAt: now + index,
+        };
+        importedCount += 1;
+      });
+
+      if (!importedCount) throw new Error("empty-file");
+      await update(ref(database, `leads/${user.uid}`), updates);
+      setNotice(`${importedCount} ${importedCount === 1 ? "Lead wurde" : "Leads wurden"} erfolgreich importiert.`);
+    } catch (importError) {
+      setError(importError.message === "invalid-format"
+        ? "Die CSV hat nicht das erwartete LeadFlow-Exportformat."
+        : "Die CSV konnte nicht importiert werden.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   if (!authReady) {
     return <main className="auth-page"><div className="loader" /></main>;
   }
@@ -447,6 +534,7 @@ export default function App() {
 
         <section className="content" id="dashboard">
           {error && <div className="error-banner"><span>{error}</span><button onClick={() => setError("")}><X size={17} /></button></div>}
+          {notice && <div className="notice-banner"><span>{notice}</span><button onClick={() => setNotice("")}><X size={17} /></button></div>}
 
           <div className="stats-grid">
             <button className={`stat-card total ${statusFilter === "Alle" ? "selected" : ""}`} onClick={() => setStatusFilter("Alle")}>
@@ -480,6 +568,8 @@ export default function App() {
             <div className="toolbar">
               <label className="search-field"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, E-Mail oder Telefon suchen..." /></label>
               <label className="filter-select"><span>Status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>Alle</option>{STATUSES.map((status) => <option key={status}>{status}</option>)}</select><ChevronDown size={16} /></label>
+              <input className="visually-hidden" ref={importInputRef} type="file" accept=".csv,text/csv" onChange={importCsv} />
+              <button className="button button-secondary import-button" onClick={() => importInputRef.current?.click()} disabled={importing}><Upload size={17} /> {importing ? "Importiert..." : "CSV Import"}</button>
               <button className="button button-secondary export-button" onClick={exportCsv} disabled={!filteredLeads.length}><Download size={17} /> CSV Export</button>
             </div>
 
